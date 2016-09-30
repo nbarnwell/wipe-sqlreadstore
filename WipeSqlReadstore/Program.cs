@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Configuration;
 using System.Data.SqlClient;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Dapper;
 
 namespace WipeSqlReadstore
@@ -24,6 +25,9 @@ from sys.tables t
 left join sys.foreign_keys fk on t.object_id = fk.parent_object_id
 left join sys.tables tb on fk.referenced_object_id = tb.object_id;");
             }
+
+            results =
+                results.Where(x => !Regex.IsMatch(x.TableName, @"^sys"));
 
             IDictionary<string, Table> tables = new Dictionary<string, Table>();
             foreach (var result in results)
@@ -51,8 +55,22 @@ left join sys.tables tb on fk.referenced_object_id = tb.object_id;");
         {
             foreach (var table in tables)
             {
-                var statement = $"delete from {table.Name}; -- References " + string.Join(", ", table.ReferencedTables);
-                Console.WriteLine(statement);
+                var defaultColor = Console.ForegroundColor;
+                Console.ForegroundColor = ConsoleColor.Blue;
+                Console.Write("delete from ");
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.Write(table.Name);
+                Console.ForegroundColor = defaultColor;
+                Console.Write(";");
+
+                if (table.ReferencedTables.Any())
+                {
+                    Console.ForegroundColor = ConsoleColor.DarkGreen;
+                    Console.Write(" -- References " + string.Join(", ", table.ReferencedTables));
+                    Console.ForegroundColor = defaultColor;
+                }
+
+                Console.WriteLine();
             }
         }
     }

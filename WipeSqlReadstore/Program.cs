@@ -43,29 +43,31 @@ left join sys.tables tb on fk.referenced_object_id = tb.object_id;");
 
             var used = new HashSet<string>();
             var sorted = new List<Table>();
-            VisitDepthFirst(tables.GetAll(),
-                t =>
+            foreach (var table in VisitDepthFirst(tables.GetAll()))
+            {
+                if (!used.Contains(table.Name))
                 {
-                    if (!used.Contains(t.Name))
-                    {
-                        sorted.Insert(0, t);
-                        used.Add(t.Name);
-                    }
-                });
+                    sorted.Insert(0, table);
+                    used.Add(table.Name);
+                }
+            }
 
             FormatOutput(sorted);
         }
 
-        private static void VisitDepthFirst(IEnumerable<Table> tables, Action<Table> action)
+        private static IEnumerable<Table> VisitDepthFirst(IEnumerable<Table> tables)
         {
             foreach (var table in tables)
             {
                 if (table.HasReferences)
                 {
-                    VisitDepthFirst(table.ReferencedTables, action);
+                    foreach (var referencedTable in VisitDepthFirst(table.ReferencedTables))
+                    {
+                        yield return referencedTable;
+                    }
                 }
 
-                action(table);
+                yield return table;
             }
         }
 

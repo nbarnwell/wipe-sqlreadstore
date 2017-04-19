@@ -1,28 +1,42 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace WipeSqlReadstore
 {
     internal class Table
     {
-        private readonly ISet<string> _referencedTables = new HashSet<string>();
+        private readonly IDictionary<string, Table> _referencedTables = new Dictionary<string, Table>();
 
         public string Name { get; }
 
-        public IEnumerable<string> ReferencedTables => _referencedTables;
+        public IEnumerable<Table> ReferencedTables => _referencedTables.Values;
+
+        public bool HasReferences => _referencedTables.Count > 0;
 
         public Table(string name)
         {
             Name = name;
         }
 
-        public void AddReferencedTable(string tableName)
+        public void AddReferencedTable(Table table)
         {
-            _referencedTables.Add(tableName);
+            _referencedTables.Add(table.Name, table);
         }
 
         public bool References(Table table)
         {
-            return _referencedTables.Contains(table.Name);
+            bool hasDirectReference = _referencedTables.ContainsKey(table.Name);
+
+            if (hasDirectReference)
+            {
+                return true;
+            }
+
+            var hasIndirectReference =
+                _referencedTables.Values
+                                 .Any(x => x.References(table));
+
+            return hasIndirectReference;
         }
     }
 }

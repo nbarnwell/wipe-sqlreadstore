@@ -17,11 +17,17 @@ namespace WipeSqlReadstore
              * sort by the table name as a tie-breaker.
              */
 
+
             int result = 0;
 
             if (x.References(y))
             {
                 result = -1;
+            }
+            
+            if (y.References(x))
+            {
+                result = 1;
             }
 
             if (result == 0)
@@ -34,6 +40,7 @@ namespace WipeSqlReadstore
                 return string.Compare(x.Name, y.Name, StringComparison.Ordinal);
             }
 
+            Console.WriteLine("Comparing {0} with {1} = {2}", x.Name, y.Name, result);
             return result;
         }
     }

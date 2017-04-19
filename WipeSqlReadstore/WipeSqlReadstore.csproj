@@ -53,6 +53,7 @@
     <Compile Include="ReferencesComparer.cs" />
     <Compile Include="Result.cs" />
     <Compile Include="Table.cs" />
+    <Compile Include="TableSet.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config">

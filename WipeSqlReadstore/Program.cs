@@ -34,8 +34,6 @@ left join sys.tables tb on fk.referenced_object_id = tb.object_id;");
             {
                 var table = tables.Get(result.TableName);
 
-                Console.WriteLine("{0}: {1}", table.Name, result.ReferencedTableName);
-
                 if (!string.IsNullOrEmpty(result.ReferencedTableName))
                 {
                     var referenceTable = tables.Get(result.ReferencedTableName);

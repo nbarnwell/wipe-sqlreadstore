@@ -16,7 +16,32 @@ namespace WipeSqlReadstore
 
             if (args.Length > 0)
             {
-                allTables = allTables.Where(x => args.Contains(x.Name));
+                var includeArg =
+                    args.Select((x, i) => new { Index = i, Arg = x })
+                        .FirstOrDefault(x => x.Arg.StartsWith("-inc"));
+
+                if (includeArg != null)
+                {
+                    var includeList =
+                        args[includeArg.Index + 1]
+                            .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+
+                    allTables = allTables.Where(x => includeList.Contains(x.Name));
+                }
+
+                var excludeArg =
+                    args.Select((x, i) => new { Index = i, Arg = x })
+                        .FirstOrDefault(x => x.Arg.StartsWith("-exc"));
+
+                if (excludeArg != null)
+                {
+                    var excludeList =
+                        args[excludeArg.Index + 1]
+                            .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+
+                    allTables = allTables.Where(x => !excludeList.Contains(x.Name));
+                }
+
             }
 
             WriteDeleteStatements(allTables);
@@ -58,19 +83,13 @@ namespace WipeSqlReadstore
             return tables;
         }
 
-        private static bool IsNotSysTable(Relationship x)
-        {
-            return (string.IsNullOrEmpty(x.ParentTableName) || !Regex.IsMatch(x.ParentTableName, @"^sys"))
-                   && !Regex.IsMatch(x.ChildTableName, @"^sys");
-        }
-
         private static void Recurse(IEnumerable<Table> tables, Action<Table> action)
         {
             var seen = new HashSet<string>();
-            Recurse(tables, seen, action, depthFirst: true);
+            Recurse(tables, seen, action);
         }
 
-        private static void Recurse(IEnumerable<Table> tables, ICollection<string> seen, Action<Table> action, bool depthFirst = true)
+        private static void Recurse(IEnumerable<Table> tables, ICollection<string> seen, Action<Table> action)
         {
             foreach (var table in tables)
             {
@@ -78,20 +97,12 @@ namespace WipeSqlReadstore
                 {
                     seen.Add(table.Name);
 
-                    if (!depthFirst)
-                    {
-                        action(table);
-                    }
-
                     if (table.IsReferenced)
                     {
                         Recurse(table.ReferencingTables, seen, action);
                     }
 
-                    if (depthFirst)
-                    {
-                        action(table);
-                    }
+                    action(table);
                 }
             }
         }
@@ -99,14 +110,6 @@ namespace WipeSqlReadstore
         private static void WriteDeleteStatements(IEnumerable<Table> tables)
         {
             Recurse(tables, OutputTableDeleteStatement);
-        }
-
-        private static void OutputTableDeleteStatements(IEnumerable<Table> tables)
-        {
-            foreach (var table in tables)
-            {
-                OutputTableDeleteStatement(table);
-            }
         }
 
         private static void OutputTableDeleteStatement(Table table)
@@ -127,6 +130,12 @@ namespace WipeSqlReadstore
             }
 
             Console.WriteLine();
+        }
+
+        private static bool IsNotSysTable(Relationship x)
+        {
+            return (string.IsNullOrEmpty(x.ParentTableName) || !Regex.IsMatch(x.ParentTableName, @"^sys"))
+                   && !Regex.IsMatch(x.ChildTableName, @"^sys");
         }
     }
 }

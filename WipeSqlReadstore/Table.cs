@@ -20,7 +20,10 @@ namespace WipeSqlReadstore
 
         public void AddReferencedTable(Table table)
         {
-            _referencedTables.Add(table.Name, table);
+            if (!_referencedTables.ContainsKey(table.Name))
+            {
+                _referencedTables.Add(table.Name, table);
+            }
         }
 
         public bool References(Table table)

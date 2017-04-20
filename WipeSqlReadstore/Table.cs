@@ -5,41 +5,41 @@ namespace WipeSqlReadstore
 {
     internal class Table
     {
-        private readonly IDictionary<string, Table> _referencedTables = new Dictionary<string, Table>();
+        private readonly IDictionary<string, Table> _referencingTables = new Dictionary<string, Table>();
 
         public string Name { get; }
 
-        public IEnumerable<Table> ReferencedTables => _referencedTables.Values;
+        public IEnumerable<Table> ReferencingTables => _referencingTables.Values;
 
-        public bool HasReferences => _referencedTables.Count > 0;
+        public bool IsReferenced => _referencingTables.Count > 0;
 
         public Table(string name)
         {
             Name = name;
         }
 
-        public void AddReferencedTable(Table table)
+        public void AddReferencingTable(Table table)
         {
-            if (!_referencedTables.ContainsKey(table.Name))
+            if (!_referencingTables.ContainsKey(table.Name))
             {
-                _referencedTables.Add(table.Name, table);
+                _referencingTables.Add(table.Name, table);
             }
         }
 
-        public bool References(Table table)
+        public bool IsReferencedBy(Table table)
         {
-            bool hasDirectReference = _referencedTables.ContainsKey(table.Name);
+            bool directlyReferenced = _referencingTables.ContainsKey(table.Name);
 
-            if (hasDirectReference)
+            if (directlyReferenced)
             {
                 return true;
             }
 
-            var hasIndirectReference =
-                _referencedTables.Values
-                                 .Any(x => x.References(table));
+            var indirectlyReferenced =
+                _referencingTables.Values
+                                 .Any(x => x.IsReferencedBy(table));
 
-            return hasIndirectReference;
+            return indirectlyReferenced;
         }
     }
 }

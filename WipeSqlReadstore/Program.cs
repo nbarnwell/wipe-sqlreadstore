@@ -12,50 +12,56 @@ namespace WipeSqlReadstore
     {
         static void Main(string[] args)
         {
-            var tables = GetTableRelationships();
+            var allTables = GetTableRelationships().GetAll();
 
-            WriteDeleteStatements(tables);
-        }
+            if (args.Length > 0)
+            {
+                allTables = allTables.Where(x => args.Contains(x.Name));
+            }
 
-        private static void WriteDeleteStatements(TableSet tables)
-        {
-            var sorted = new List<Table>();
-            Recurse(tables.GetAll(), table => sorted.Insert(0, table));
-            FormatOutput(sorted);
+            WriteDeleteStatements(allTables);
         }
 
         private static TableSet GetTableRelationships()
         {
             var connectionString = ConfigurationManager.ConnectionStrings["Default"].ConnectionString;
 
-            IEnumerable<Result> results;
+            IEnumerable<Relationship> relationships;
             using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
 
-                results = connection.Query<Result>(
-                    @"
-select object_name(parent.object_id) as TableName, object_name(child.object_id) as ReferencedTableName
-from sys.tables parent
-left join sys.foreign_keys fk on parent.object_id = fk.parent_object_id
-left join sys.tables child on fk.referenced_object_id = child.object_id;");
+                relationships = connection.Query<Relationship>(
+                                              @"
+                                        select 
+                                            object_name(child.object_id) as ChildTableName,
+                                            object_name(parent.object_id) as ParentTableName,
+                                            fk.name as ReferenceName
+                                        from sys.tables child
+                                        left join sys.foreign_keys fk on child.object_id = fk.referenced_object_id
+                                        left join sys.tables parent on fk.parent_object_id = parent.object_id;")
+                                          .Where(IsNotSysTable);
             }
-
-            results =
-                results.Where(x => !Regex.IsMatch(x.TableName, @"^sys"));
 
             var tables = new TableSet();
-            foreach (var result in results)
+            foreach (var relationship in relationships)
             {
-                var table = tables.Get(result.TableName);
+                var childTable = tables.Get(relationship.ChildTableName);
 
-                if (!string.IsNullOrEmpty(result.ReferencedTableName))
+                if (!string.IsNullOrEmpty(relationship.ParentTableName))
                 {
-                    var referenceTable = tables.Get(result.ReferencedTableName);
-                    table.AddReferencedTable(referenceTable);
+                    var parentTable = tables.Get(relationship.ParentTableName);
+                    childTable.AddReferencingTable(parentTable);
                 }
             }
+
             return tables;
+        }
+
+        private static bool IsNotSysTable(Relationship x)
+        {
+            return (string.IsNullOrEmpty(x.ParentTableName) || !Regex.IsMatch(x.ParentTableName, @"^sys"))
+                   && !Regex.IsMatch(x.ChildTableName, @"^sys");
         }
 
         private static void Recurse(IEnumerable<Table> tables, Action<Table> action)
@@ -77,9 +83,9 @@ left join sys.tables child on fk.referenced_object_id = child.object_id;");
                         action(table);
                     }
 
-                    if (table.HasReferences)
+                    if (table.IsReferenced)
                     {
-                        Recurse(table.ReferencedTables, seen, action);
+                        Recurse(table.ReferencingTables, seen, action);
                     }
 
                     if (depthFirst)
@@ -90,27 +96,37 @@ left join sys.tables child on fk.referenced_object_id = child.object_id;");
             }
         }
 
-        private static void FormatOutput(IEnumerable<Table> tables)
+        private static void WriteDeleteStatements(IEnumerable<Table> tables)
+        {
+            Recurse(tables, OutputTableDeleteStatement);
+        }
+
+        private static void OutputTableDeleteStatements(IEnumerable<Table> tables)
         {
             foreach (var table in tables)
             {
-                var defaultColor = Console.ForegroundColor;
-                Console.ForegroundColor = ConsoleColor.Blue;
-                Console.Write("delete from ");
-                Console.ForegroundColor = ConsoleColor.White;
-                Console.Write("[{0}]", table.Name);
-                Console.ForegroundColor = defaultColor;
-                Console.Write(";");
-
-                if (table.ReferencedTables.Any())
-                {
-                    Console.ForegroundColor = ConsoleColor.DarkGreen;
-                    Console.Write(" -- References " + string.Join(", ", table.ReferencedTables.Select(x => x.Name)));
-                    Console.ForegroundColor = defaultColor;
-                }
-
-                Console.WriteLine();
+                OutputTableDeleteStatement(table);
             }
+        }
+
+        private static void OutputTableDeleteStatement(Table table)
+        {
+            var defaultColor = Console.ForegroundColor;
+            Console.ForegroundColor = ConsoleColor.Blue;
+            Console.Write("delete from ");
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.Write("[{0}]", table.Name);
+            Console.ForegroundColor = defaultColor;
+            Console.Write(";");
+
+            if (table.ReferencingTables.Any())
+            {
+                Console.ForegroundColor = ConsoleColor.DarkGreen;
+                Console.Write(" -- Referenced by " + string.Join(", ", table.ReferencingTables.Select(x => x.Name)));
+                Console.ForegroundColor = defaultColor;
+            }
+
+            Console.WriteLine();
         }
     }
 }

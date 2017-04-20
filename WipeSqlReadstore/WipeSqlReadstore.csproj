@@ -50,8 +50,7 @@
   <ItemGroup>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="ReferencesComparer.cs" />
-    <Compile Include="Result.cs" />
+    <Compile Include="Relationship.cs" />
     <Compile Include="Table.cs" />
     <Compile Include="TableSet.cs" />
   </ItemGroup>

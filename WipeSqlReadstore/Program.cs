@@ -12,6 +12,20 @@ namespace WipeSqlReadstore
     {
         static void Main(string[] args)
         {
+            var tables = GetTableRelationships();
+
+            WriteDeleteStatements(tables);
+        }
+
+        private static void WriteDeleteStatements(TableSet tables)
+        {
+            var sorted = new List<Table>();
+            Recurse(tables.GetAll(), table => sorted.Insert(0, table));
+            FormatOutput(sorted);
+        }
+
+        private static TableSet GetTableRelationships()
+        {
             var connectionString = ConfigurationManager.ConnectionStrings["Default"].ConnectionString;
 
             IEnumerable<Result> results;
@@ -19,11 +33,12 @@ namespace WipeSqlReadstore
             {
                 connection.Open();
 
-                results = connection.Query<Result>(@"
-select object_name(t.object_id) as TableName, object_name(tb.object_id) as ReferencedTableName
-from sys.tables t
-left join sys.foreign_keys fk on t.object_id = fk.parent_object_id
-left join sys.tables tb on fk.referenced_object_id = tb.object_id;");
+                results = connection.Query<Result>(
+                    @"
+select object_name(parent.object_id) as TableName, object_name(child.object_id) as ReferencedTableName
+from sys.tables parent
+left join sys.foreign_keys fk on parent.object_id = fk.parent_object_id
+left join sys.tables child on fk.referenced_object_id = child.object_id;");
             }
 
             results =
@@ -40,34 +55,38 @@ left join sys.tables tb on fk.referenced_object_id = tb.object_id;");
                     table.AddReferencedTable(referenceTable);
                 }
             }
-
-            var used = new HashSet<string>();
-            var sorted = new List<Table>();
-            foreach (var table in VisitDepthFirst(tables.GetAll()))
-            {
-                if (!used.Contains(table.Name))
-                {
-                    sorted.Insert(0, table);
-                    used.Add(table.Name);
-                }
-            }
-
-            FormatOutput(sorted);
+            return tables;
         }
 
-        private static IEnumerable<Table> VisitDepthFirst(IEnumerable<Table> tables)
+        private static void Recurse(IEnumerable<Table> tables, Action<Table> action)
+        {
+            var seen = new HashSet<string>();
+            Recurse(tables, seen, action, depthFirst: true);
+        }
+
+        private static void Recurse(IEnumerable<Table> tables, ICollection<string> seen, Action<Table> action, bool depthFirst = true)
         {
             foreach (var table in tables)
             {
-                if (table.HasReferences)
+                if (!seen.Contains(table.Name))
                 {
-                    foreach (var referencedTable in VisitDepthFirst(table.ReferencedTables))
+                    seen.Add(table.Name);
+
+                    if (!depthFirst)
                     {
-                        yield return referencedTable;
+                        action(table);
+                    }
+
+                    if (table.HasReferences)
+                    {
+                        Recurse(table.ReferencedTables, seen, action);
+                    }
+
+                    if (depthFirst)
+                    {
+                        action(table);
                     }
                 }
-
-                yield return table;
             }
         }
 
